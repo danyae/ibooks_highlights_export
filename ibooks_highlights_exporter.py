@@ -104,7 +104,8 @@ def get_chapter_name():
     return t[4]
 
 def make_text_readable(text, every=80):
-    return '\N'.join(text[i:i+every] for i in xrange(0, len(text), every))
+    text = text.replace('\n',' ').replace('"','').replace("&","and")
+    return ''.join(text[i:i+every] for i in xrange(0, len(text), every))
 
 
 def get_asset_title_tab():
@@ -145,8 +146,9 @@ parser.add_argument('-o', action="store", default="output.html", dest="fname",
         help="Specify output filename (default: output.html)")
 parser.add_argument('--notoc', action="store_true", help="Disable the javascript TOC in the output")
 parser.add_argument('--nobootstrap', action="store_true", help="Disable the bootstrap library in the output")
-parser.add_argument('--mindmap', action="store_true", help="Generate a Simple Mind Mind Map instead of .html file. "
-                                                           "You need to specify a book first.")
+parser.add_argument('--mindmap', action="store_true", help="Generate a Simple Mind Mind Map instead of .html file. ")
+parser.add_argument('--format', action="store_true", help="Specify output mindmap format. Default: opml",
+                                                                        default="opml")
 parser.add_argument('--list', action="store_true", help="Lists a books having highlights.")
 parser.add_argument('--book', action="store", help="Name of the book for which annotations will be exported",
                     dest="book")
@@ -158,20 +160,33 @@ args = parser.parse_args()
 if args.list:
     #only prints a list of books with highlights and exists
     res2 = cur2.execute("select distinct(ZASSETID), ZTITLE, ZAUTHOR from ZBKLIBRARYASSET")
+    from Tkinter import *
+    import tkMessageBox
+    import Tkinter
+
+    top = Tk()
+
+    Lb1 = Listbox(top)
+    counter = 1
     for assetid, title, author in res2:
-        print assetid,title, author
+        Lb1.insert(counter, unicode(title)+"\t"+unicode(author))
+        print(counter, assetid)
+        print(unicode(title))
+        print(unicode(author))
+        print("\n\n")
+
+    Lb1.pack()
+    top.mainloop()
 
 else:
     if args.mindmap:
         if args.book:
             if args.fname == 'output.html':
-                args.fname = 'output.smmx'
+                if args.format == "opml":
+                    args.fname = 'output.opml'
+                else:
+                    args.fname = 'output.smmx'
             with open(args.fname, 'w') as f:
-                template = TEMPLATE_ENVIRONMENT.get_template("simple_mind_template.xml")
-                template.globals['get_mm_color'] = get_mm_color
-                template.globals['make_text_readable'] = make_text_readable
-                template.globals['get_book_details'] = get_book_details
-
                 res1 = cur1.execute("select distinct(ZFUTUREPROOFING5) from ZAEANNOTATION "
                                 "where (ZANNOTATIONSELECTEDTEXT not NULL)  AND  `ZANNOTATIONASSETID` = '"+str(args.book)+"' order by"
                                 " ZANNOTATIONASSETID, ZPLLOCATIONRANGESTART ;")
@@ -211,9 +226,43 @@ else:
                 print get_book_details(args.book)
                 print args.book
 
-                smmx = template.render(obj={"last":"###", "date":today, "highlights":annotations,
-                    "assetlist":asset_title_tab, "notoc":args.notoc, "bookname": get_book_details(args.book),
-                    "nobootstrap":args.nobootstrap, "chapters": chapters_list})
+
+                if args.format == "opml":
+                    template = TEMPLATE_ENVIRONMENT.get_template("open_mindmap.xml")
+                else:
+                    template = TEMPLATE_ENVIRONMENT.get_template("simple_mind_template.xml")
+
+                template.globals['get_mm_color'] = get_mm_color
+                template.globals['make_text_readable'] = make_text_readable
+                template.globals['get_book_details'] = get_book_details
+
+
+                if args.format == "opml":
+                    #Move annotations to chapter object
+                    chapters = {}
+                    nodes = []
+                    for ch in chapters_list:
+                        chapters[ch[0]] = [] 
+                    for ann in annotations:
+                        chapters[ann[3]].append(ann[1])
+
+                    for k in chapters.keys():
+                        print (">>>", k)
+                        try:
+                            chapter_name = k
+                            if k == "" or k == None:
+                                chapter_name = "Misc"
+                            nodes.append ([chapter_name, chapters[k]])
+                        except TypeError, NameError:
+                            print ("error",k, len(chapters[k]))
+                        
+                    smmx = template.render(obj={"last":"###", "date":today,
+                        "assetlist":asset_title_tab, "notoc":args.notoc, "book_name": get_book_details(args.book),
+                        "nobootstrap":args.nobootstrap, "chapters": nodes})
+                else:
+                    smmx = template.render(obj={"last":"###", "date":today, "highlights":annotations,
+                        "assetlist":asset_title_tab, "notoc":args.notoc, "bookname": get_book_details(args.book),
+                        "nobootstrap":args.nobootstrap, "chapters": chapters_list})
                 f.write(smmx.encode('utf-8'))
         else:
             print 'Please, specify book for which you want MM to be created. List can be obtained with --list'

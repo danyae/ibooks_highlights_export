@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<opml version="1.0">
+    <head>
+        <title>{{ obj.book_name }}</title>
+    </head>
+    <body>
+        <outline text="{{ obj.book_name }}">
+            {% for ch in obj.chapters %}
+            <outline text="{{ ch[0] }}">
+                {% for h in ch[1] %}
+                    {% if h %}<outline text="{{ make_text_readable(h) }}"></outline>{% endif %}
+                {% endfor %}
+            </outline>  
+            {% endfor %}
+        </outline>
+    </body>
+</opml>
