@@ -244,7 +244,10 @@ else:
                     for ch in chapters_list:
                         chapters[ch[0]] = [] 
                     for ann in annotations:
-                        chapters[ann[3]].append(ann[1])
+                        content = ann[1]
+                        if (content == None):
+                            content = ann[2]
+                        chapters[ann[3]].append(content)
 
                     for k in chapters.keys():
                         print (">>>", k)
@@ -253,6 +256,9 @@ else:
                             if k == "" or k == None:
                                 chapter_name = "Misc"
                             nodes.append ([chapter_name, chapters[k]])
+                            print chapter_name
+                            print chapters[k][0]
+                            print "\n"
                         except TypeError, NameError:
                             print ("error",k, len(chapters[k]))
                         
