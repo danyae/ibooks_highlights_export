@@ -6,10 +6,16 @@ from glob import glob
 import os
 import sqlite3
 import datetime
-import argparse
 import re
-
-
+import sys
+if sys.version_info < (3, 0):
+    # Python 2
+    import Tkinter as tk
+else:
+    # Python 3
+    import tkinter as tk
+import tkMessageBox
+import tkFileDialog
 
 PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_ENVIRONMENT = Environment(
@@ -17,33 +23,6 @@ TEMPLATE_ENVIRONMENT = Environment(
     loader=FileSystemLoader(os.path.join(PATH, 'templates')),
     trim_blocks=False)
 
-
-asset_title_tab = {}
-base1 = "~/Library/Containers/com.apple.iBooksX/Data/Documents/AEAnnotation/"
-base1 = os.path.expanduser(base1)
-sqlite_file = glob(base1 + "*.sqlite")
-
-if not sqlite_file:
-    print "Couldn't find the iBooks database. Exiting."
-    exit()
-else:
-    sqlite_file = sqlite_file[0]
-
-base2 = "~/Library/Containers/com.apple.iBooksX/Data/Documents/BKLibrary/"
-base2 = os.path.expanduser(base2)
-assets_file = glob(base2 + "*.sqlite")
-
-if not assets_file:
-    print "Couldn't find the iBooks assets database. Exiting."
-    exit()
-else:
-    assets_file = assets_file[0]
-
-db1 = sqlite3.connect(sqlite_file, check_same_thread=False)
-cur1 = db1.cursor()
-
-db2 = sqlite3.connect(assets_file, check_same_thread=False)
-cur2 = db2.cursor()
 
 def get_all_titles():
     global cur2
@@ -141,159 +120,162 @@ def get_mm_color (num):
         return num
 
 
-parser = argparse.ArgumentParser(description='iBooks Highlights Exporter')
-parser.add_argument('-o', action="store", default="output.html", dest="fname",
-        help="Specify output filename (default: output.html)")
-parser.add_argument('--notoc', action="store_true", help="Disable the javascript TOC in the output")
-parser.add_argument('--nobootstrap', action="store_true", help="Disable the bootstrap library in the output")
-parser.add_argument('--mindmap', action="store_true", help="Generate a Simple Mind Mind Map instead of .html file. ")
-parser.add_argument('--format', action="store_true", help="Specify output mindmap format. Default: opml",
-                                                                        default="opml")
-parser.add_argument('--list', action="store_true", help="Lists a books having highlights.")
-parser.add_argument('--book', action="store", help="Name of the book for which annotations will be exported",
-                    dest="book")
-args = parser.parse_args()
+
+def get_mind_map_contents(book_id):
+    res1 = cur1.execute("select distinct(ZFUTUREPROOFING5) from ZAEANNOTATION "
+                    "where (ZANNOTATIONSELECTEDTEXT not NULL)  AND  `ZANNOTATIONASSETID` = '"+str(book_id)+"' order by"
+                    " ZANNOTATIONASSETID, ZPLLOCATIONRANGESTART ;")
+    chapters = []
+    for chapter in res1:
+        if chapter not in chapters:
+            chapters.append(chapter[0])
+    print chapters
+
+
+    chapters_list = []
+    counter = 1
+    for ch in chapters:
+        chapters_list.append([ch,chapters.index(ch)+1, counter])
+        counter += 1
+
+
+    res1 = cur1.execute("select ZANNOTATIONASSETID, ZANNOTATIONREPRESENTATIVETEXT, ZANNOTATIONSELECTEDTEXT, "
+                    "ZFUTUREPROOFING5, ZANNOTATIONSTYLE, ZFUTUREPROOFING5 from ZAEANNOTATION "
+                    "where (ZANNOTATIONSELECTEDTEXT not NULL)  AND  `ZANNOTATIONASSETID` = '"+str(book_id)+"' order by"
+                    " ZANNOTATIONASSETID, ZPLLOCATIONRANGESTART ;")
+
+
+    annotations = []
+    for ZANNOTATIONASSETID, ZANNOTATIONREPRESENTATIVETEXT, ZANNOTATIONSELECTEDTEXT, \
+        ZFUTUREPROOFING5, ZANNOTATIONSTYLE, ZFUTUREPROOFING5 in res1:
+        annotations.append([ZANNOTATIONASSETID, ZANNOTATIONREPRESENTATIVETEXT, ZANNOTATIONSELECTEDTEXT,
+        ZFUTUREPROOFING5, ZANNOTATIONSTYLE, chapters.index(ZFUTUREPROOFING5) + 1, counter])
+        counter += 1
+
+    # beginning another way of doing the same thing, just more efficient
+    res2 = cur2.execute("select distinct(ZASSETID), ZTITLE, ZAUTHOR from ZBKLIBRARYASSET")
+    for assetid, title, author in res2:
+        asset_title_tab[assetid] = [assetid, title, author]
+
+    today = datetime.date.isoformat(datetime.date.today())
+    print get_book_details(book_id)
+    print book_id
+
+
+    template = TEMPLATE_ENVIRONMENT.get_template("open_mindmap.xml")
+
+    template.globals['get_mm_color'] = get_mm_color
+    template.globals['make_text_readable'] = make_text_readable
+    template.globals['get_book_details'] = get_book_details
+
+
+    #Move annotations to chapter object
+    chapters = {}
+    nodes = []
+    for ch in chapters_list:
+        chapters[ch[0]] = [] 
+    for ann in annotations:
+        content = ann[1]
+        if (content == None):
+            content = ann[2]
+        chapters[ann[3]].append(content)
+
+    for k in chapters.keys():
+        print (">>>", k)
+        try:
+            chapter_name = k
+            if k == "" or k == None:
+                chapter_name = "Misc"
+            nodes.append ([chapter_name, chapters[k]])
+            print chapter_name
+            print chapters[k][0]
+            print "\n"
+        except TypeError, NameError:
+            print ("error",k, len(chapters[k]))
+        
+    smmx = template.render(obj={"last":"###", "date":today,
+        "assetlist":asset_title_tab, "book_name": get_book_details(book_id),
+            "chapters": nodes})
+
+    return smmx.encode('utf-8')
+
+def file_save(book_id):
+    f = tkFileDialog.asksaveasfile(mode='w', defaultextension=".opml")
+    if f is None: # asksaveasfile return `None` if dialog closed with "cancel".
+        return
+    mind_map_content = get_mind_map_contents(book_id)
+    print(book_id)
+    f.write(mind_map_content)
+    f.close() 
+
+
+if __name__ == "__main__":
+
+    asset_title_tab = {}
+    base1 = "~/Library/Containers/com.apple.iBooksX/Data/Documents/AEAnnotation/"
+    base1 = os.path.expanduser(base1)
+    sqlite_file = glob(base1 + "*.sqlite")
+
+    if not sqlite_file:
+        print "Couldn't find the iBooks database. Exiting."
+        exit()
+    else:
+        sqlite_file = sqlite_file[0]
+
+    base2 = "~/Library/Containers/com.apple.iBooksX/Data/Documents/BKLibrary/"
+    base2 = os.path.expanduser(base2)
+    assets_file = glob(base2 + "*.sqlite")
+
+    if not assets_file:
+        print "Couldn't find the iBooks assets database. Exiting."
+        exit()
+    else:
+        assets_file = assets_file[0]
+
+    db1 = sqlite3.connect(sqlite_file, check_same_thread=False)
+    cur1 = db1.cursor()
+
+    db2 = sqlite3.connect(assets_file, check_same_thread=False)
+    cur2 = db2.cursor()
 
 
 
 
-if args.list:
     #only prints a list of books with highlights and exists
     res2 = cur2.execute("select distinct(ZASSETID), ZTITLE, ZAUTHOR from ZBKLIBRARYASSET")
-    from Tkinter import *
-    import tkMessageBox
-    import Tkinter
 
-    top = Tk()
 
-    Lb1 = Listbox(top)
     counter = 1
+    books_list = []
     for assetid, title, author in res2:
-        Lb1.insert(counter, unicode(title)+"\t"+unicode(author))
-        print(counter, assetid)
-        print(unicode(title))
-        print(unicode(author))
+        books_list.append((counter, assetid, unicode(title)+"\t"+unicode(author)))
+        counter += 1
+
+    def Get(event):    
+        l = event.widget
+        sel = l.curselection()
+        if len(sel) == 1:
+            s = l.get(sel[0])
+            book_id = books_list[sel[0]][1]
+            print (s)
+            print books_list[sel[0]][1], books_list[sel[0]][2]
+            if s[0] == '-':
+                l.selection_clear(sel[0])
+            else:
+                file_save(book_id)
+
+
+    top = tk.Tk()
+
+
+    Lb1 = tk.Listbox(top, height=20, width=50, selectmode = tk.SINGLE)
+    Lb1.grid(row=0, column=0, sticky=tk.N+tk.S+tk.E+tk.W)
+    for book in books_list:
+        Lb1.insert(book[0], book[2])
+        print(book[0], book[1])
+        print(unicode(book[2]))
         print("\n\n")
 
     Lb1.pack()
+    Lb1.bind("<<ListboxSelect>>", Get)
     top.mainloop()
-
-else:
-    if args.mindmap:
-        if args.book:
-            if args.fname == 'output.html':
-                if args.format == "opml":
-                    args.fname = 'output.opml'
-                else:
-                    args.fname = 'output.smmx'
-            with open(args.fname, 'w') as f:
-                res1 = cur1.execute("select distinct(ZFUTUREPROOFING5) from ZAEANNOTATION "
-                                "where (ZANNOTATIONSELECTEDTEXT not NULL)  AND  `ZANNOTATIONASSETID` = '"+str(args.book)+"' order by"
-                                " ZANNOTATIONASSETID, ZPLLOCATIONRANGESTART ;")
-                chapters = []
-                for chapter in res1:
-                    if chapter not in chapters:
-                        chapters.append(chapter[0])
-                print chapters
-
-
-                chapters_list = []
-                counter = 1
-                for ch in chapters:
-                    chapters_list.append([ch,chapters.index(ch)+1, counter])
-                    counter += 1
-
-
-                res1 = cur1.execute("select ZANNOTATIONASSETID, ZANNOTATIONREPRESENTATIVETEXT, ZANNOTATIONSELECTEDTEXT, "
-                                "ZFUTUREPROOFING5, ZANNOTATIONSTYLE, ZFUTUREPROOFING5 from ZAEANNOTATION "
-                                "where (ZANNOTATIONSELECTEDTEXT not NULL)  AND  `ZANNOTATIONASSETID` = '"+str(args.book)+"' order by"
-                                " ZANNOTATIONASSETID, ZPLLOCATIONRANGESTART ;")
-
-
-                annotations = []
-                for ZANNOTATIONASSETID, ZANNOTATIONREPRESENTATIVETEXT, ZANNOTATIONSELECTEDTEXT, \
-                       ZFUTUREPROOFING5, ZANNOTATIONSTYLE, ZFUTUREPROOFING5 in res1:
-                    annotations.append([ZANNOTATIONASSETID, ZANNOTATIONREPRESENTATIVETEXT, ZANNOTATIONSELECTEDTEXT,
-                       ZFUTUREPROOFING5, ZANNOTATIONSTYLE, chapters.index(ZFUTUREPROOFING5) + 1, counter])
-                    counter += 1
-
-                # beginning another way of doing the same thing, just more efficient
-                res2 = cur2.execute("select distinct(ZASSETID), ZTITLE, ZAUTHOR from ZBKLIBRARYASSET")
-                for assetid, title, author in res2:
-                    asset_title_tab[assetid] = [assetid, title, author]
-
-                today = datetime.date.isoformat(datetime.date.today())
-                print get_book_details(args.book)
-                print args.book
-
-
-                if args.format == "opml":
-                    template = TEMPLATE_ENVIRONMENT.get_template("open_mindmap.xml")
-                else:
-                    template = TEMPLATE_ENVIRONMENT.get_template("simple_mind_template.xml")
-
-                template.globals['get_mm_color'] = get_mm_color
-                template.globals['make_text_readable'] = make_text_readable
-                template.globals['get_book_details'] = get_book_details
-
-
-                if args.format == "opml":
-                    #Move annotations to chapter object
-                    chapters = {}
-                    nodes = []
-                    for ch in chapters_list:
-                        chapters[ch[0]] = [] 
-                    for ann in annotations:
-                        content = ann[1]
-                        if (content == None):
-                            content = ann[2]
-                        chapters[ann[3]].append(content)
-
-                    for k in chapters.keys():
-                        print (">>>", k)
-                        try:
-                            chapter_name = k
-                            if k == "" or k == None:
-                                chapter_name = "Misc"
-                            nodes.append ([chapter_name, chapters[k]])
-                            print chapter_name
-                            print chapters[k][0]
-                            print "\n"
-                        except TypeError, NameError:
-                            print ("error",k, len(chapters[k]))
-                        
-                    smmx = template.render(obj={"last":"###", "date":today,
-                        "assetlist":asset_title_tab, "notoc":args.notoc, "book_name": get_book_details(args.book),
-                        "nobootstrap":args.nobootstrap, "chapters": nodes})
-                else:
-                    smmx = template.render(obj={"last":"###", "date":today, "highlights":annotations,
-                        "assetlist":asset_title_tab, "notoc":args.notoc, "bookname": get_book_details(args.book),
-                        "nobootstrap":args.nobootstrap, "chapters": chapters_list})
-                f.write(smmx.encode('utf-8'))
-        else:
-            print 'Please, specify book for which you want MM to be created. List can be obtained with --list'
-
-    else:
-        with open(args.fname, 'w') as f:
-
-            res1 = cur1.execute("select ZANNOTATIONASSETID, ZANNOTATIONREPRESENTATIVETEXT, ZANNOTATIONSELECTEDTEXT, "
-                                "ZFUTUREPROOFING5, ZANNOTATIONSTYLE, ZFUTUREPROOFING5 from ZAEANNOTATION order by"
-                                " ZANNOTATIONASSETID, ZPLLOCATIONRANGESTART ;")
-            today = datetime.date.isoformat(datetime.date.today())
-
-
-            # beginning another way of doing the same thing, just more efficient
-            res2 = cur2.execute("select distinct(ZASSETID), ZTITLE, ZAUTHOR from ZBKLIBRARYASSET")
-            for assetid, title, author in res2:
-                asset_title_tab[assetid] = [title, author]
-
-            template = TEMPLATE_ENVIRONMENT.get_template("simpletemplate.html")
-            template.globals['bold_text'] = bold_text
-            template.globals['get_color'] = get_color
-            template.globals['get_book_details'] = get_book_details
-            template.globals['get_chapter_name'] = get_chapter_name
-
-            html = template.render(obj={"last":"###", "date":today, "highlights":res1,
-                "assetlist":asset_title_tab, "notoc":args.notoc,
-                "nobootstrap":args.nobootstrap})
-            f.write(html.encode('utf-8'))
