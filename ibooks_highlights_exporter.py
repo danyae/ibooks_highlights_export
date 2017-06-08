@@ -119,8 +119,6 @@ def get_mm_color (num):
     else:
         return num
 
-
-
 def get_mind_map_contents(book_id):
     res1 = cur1.execute("select distinct(ZFUTUREPROOFING5) from ZAEANNOTATION "
                     "where (ZANNOTATIONSELECTEDTEXT not NULL)  AND  `ZANNOTATIONASSETID` = '"+str(book_id)+"' order by"
