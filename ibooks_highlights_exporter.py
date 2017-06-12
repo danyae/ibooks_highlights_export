@@ -170,13 +170,32 @@ def get_mind_map_contents(book_id):
     #Move annotations to chapter object
     chapters = {}
     nodes = []
-    for ch in chapters_list:
-        chapters[ch[0]] = [] 
+    annotations_counter = 0
+    fake_chapter_counter = 1
+    if len(chapters_list) != 1:
+        for ch in chapters_list:
+            chapters[ch[0]] = [] 
+    else:
+        # Split everything in 5 parts
+        chapters = {"Part " + str(number+1): [] for number in range(5)}
+        annotations_per_fake_chapter = len(annotations) / 5
+
+    
     for ann in annotations:
         content = ann[1]
         if (content == None):
             content = ann[2]
-        chapters[ann[3]].append(content)
+            
+        if len(chapters_list) != 1:
+            chapters[ann[3]].append(content)
+        else:
+            if (annotations_counter < annotations_per_fake_chapter):
+                fake_chapter_name = "Part " + str(fake_chapter_counter)
+                chapters[fake_chapter_name].append(content)
+                annotations_counter += 1
+            else:
+                fake_chapter_counter += 1
+                annotations_counter = 0
 
     for k in chapters.keys():
         print (">>>", k)
