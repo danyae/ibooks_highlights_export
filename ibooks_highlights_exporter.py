@@ -14,8 +14,8 @@ if sys.version_info < (3, 0):
 else:
     # Python 3
     import tkinter as tk
-import tkMessageBox
-import tkFileDialog
+    import tkinter.messagebox as tkMessageBox
+    import tkinter.filedialog as tkFileDialog
 
 PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_ENVIRONMENT = Environment(
@@ -43,7 +43,7 @@ def get_all_relevant_assetids_and_counts():
 
 def get_all_relevant_titles():
     aids_and_counts = get_all_relevant_assetids_and_counts()
-    print aids_and_counts
+    print(aids_and_counts)
     all_titles = get_all_titles()
 
     op = {}
@@ -84,7 +84,7 @@ def get_chapter_name():
 
 def make_text_readable(text, every=80):
     text = text.replace('\n',' ').replace('"','').replace("&","and")
-    return ''.join(text[i:i+every] for i in xrange(0, len(text), every))
+    return ''.join(text[i:i+every] for i in range(0, len(text), every))
 
 
 def get_asset_title_tab():
@@ -127,7 +127,7 @@ def get_mind_map_contents(book_id):
     for chapter in res1:
         if chapter not in chapters:
             chapters.append(chapter[0])
-    print chapters
+    print(chapters)
 
 
     chapters_list = []
@@ -156,8 +156,8 @@ def get_mind_map_contents(book_id):
         asset_title_tab[assetid] = [assetid, title, author]
 
     today = datetime.date.isoformat(datetime.date.today())
-    print get_book_details(book_id)
-    print book_id
+    print( get_book_details(book_id))
+    print( book_id)
 
 
     template = TEMPLATE_ENVIRONMENT.get_template("open_mindmap.xml")
@@ -204,11 +204,11 @@ def get_mind_map_contents(book_id):
             if k == "" or k == None:
                 chapter_name = "Misc"
             nodes.append ([chapter_name, chapters[k]])
-            print chapter_name
-            print chapters[k][0]
-            print "\n"
-        except TypeError, NameError:
-            print ("error",k, len(chapters[k]))
+            print( chapter_name)
+            print( chapters[k][0])
+            print( "\n")
+        except (TypeError, NameError) as e:
+            print ("error",k, len(chapters[k]), e)
         
     smmx = template.render(obj={"last":"###", "date":today,
         "assetlist":asset_title_tab, "book_name": get_book_details(book_id),
@@ -234,7 +234,7 @@ if __name__ == "__main__":
     sqlite_file = glob(base1 + "*.sqlite")
 
     if not sqlite_file:
-        print "Couldn't find the iBooks database. Exiting."
+        print("Couldn't find the iBooks database. Exiting.")
         exit()
     else:
         sqlite_file = sqlite_file[0]
@@ -244,7 +244,7 @@ if __name__ == "__main__":
     assets_file = glob(base2 + "*.sqlite")
 
     if not assets_file:
-        print "Couldn't find the iBooks assets database. Exiting."
+        print("Couldn't find the iBooks assets database. Exiting.")
         exit()
     else:
         assets_file = assets_file[0]
@@ -265,7 +265,7 @@ if __name__ == "__main__":
     counter = 1
     books_list = []
     for assetid, title, author in res2:
-        books_list.append((counter, assetid, unicode(title)+"\t"+unicode(author)))
+        books_list.append((counter, assetid, str(title)+"\t"+str(author)))
         counter += 1
 
     def Get(event):    
@@ -275,7 +275,7 @@ if __name__ == "__main__":
             s = l.get(sel[0])
             book_id = books_list[sel[0]][1]
             print (s)
-            print books_list[sel[0]][1], books_list[sel[0]][2]
+            print(books_list[sel[0]][1], books_list[sel[0]][2])
             if s[0] == '-':
                 l.selection_clear(sel[0])
             else:
@@ -290,7 +290,7 @@ if __name__ == "__main__":
     for book in books_list:
         Lb1.insert(book[0], book[2])
         print(book[0], book[1])
-        print(unicode(book[2]))
+        print(str(book[2]))
         print("\n\n")
 
     Lb1.pack()
