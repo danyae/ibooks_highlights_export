@@ -217,7 +217,7 @@ def get_mind_map_contents(book_id):
     return smmx.encode('utf-8')
 
 def file_save(book_id):
-    f = tkFileDialog.asksaveasfile(mode='w', defaultextension=".opml")
+    f = tkFileDialog.asksaveasfile(mode='wb', defaultextension=".opml")
     if f is None: # asksaveasfile return `None` if dialog closed with "cancel".
         return
     mind_map_content = get_mind_map_contents(book_id)
