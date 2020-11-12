@@ -1,4 +1,4 @@
-altgraph==0.14
+altgraph==0.17
 Jinja2==2.8
 packaging==16.8
 pretty==0.1

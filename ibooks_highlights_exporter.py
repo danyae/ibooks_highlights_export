@@ -11,6 +11,7 @@ import sys
 if sys.version_info < (3, 0):
     # Python 2
     import Tkinter as tk
+    from tkinter import filedialog as tkFileDialog
 else:
     # Python 3
     import tkinter as tk
@@ -265,7 +266,7 @@ if __name__ == "__main__":
     counter = 1
     books_list = []
     for assetid, title, author in res2:
-        books_list.append((counter, assetid, str(title)+"\t"+str(author)))
+        books_list.append((counter, assetid, title.encode('utf-8')+"\t"+author.encode('utf-8')))
         counter += 1
 
     def Get(event):    
